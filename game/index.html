@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Palmera Bay — Open-World Crime</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0b1020;
+    font-family: 'Segoe UI', system-ui, sans-serif; color: #fff; }
+  #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; z-index: 5; }
+  .hud-box { position: absolute; background: rgba(8, 12, 24, 0.72); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 8px; padding: 8px 12px; font-size: 15px; line-height: 1.45; }
+  #hud-topleft { top: 12px; left: 12px; }
+  #hud-topleft .money { font-size: 22px; font-weight: 700; color: #7dff9a; }
+  #hud-topleft .debt { color: #ffb3c1; font-size: 13px; }
+  #hud-stars { font-size: 20px; color: #ffd21c; letter-spacing: 2px; }
+  #hud-topright { top: 12px; right: 12px; text-align: right; }
+  #hud-mission { top: 12px; left: 50%; transform: translateX(-50%); max-width: 46%;
+    text-align: center; font-size: 14px; color: #ffd7ef; border-color: rgba(255,46,136,0.6); }
+  #hud-bottomright { bottom: 12px; right: 12px; text-align: right; }
+  #hud-speed { font-size: 24px; font-weight: 700; }
+  #hud-bottomleft { bottom: 12px; left: 12px; }
+  #minimap { width: 180px; height: 180px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.35); display: block; }
+  #toast { position: absolute; bottom: 210px; left: 50%; transform: translateX(-50%);
+    background: rgba(8,12,24,0.85); border: 1px solid #ff2e88; color: #fff; padding: 10px 18px;
+    border-radius: 8px; font-size: 16px; opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
+  #crosshair { position: absolute; top: 50%; left: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; display: none; }
+  #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #fff; }
+  #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #crosshair::after { top: 8px; left: 0; width: 18px; height: 2px; }
+  #damage-flash { position: fixed; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(255,0,0,0.55) 100%);
+    opacity: 0; pointer-events: none; z-index: 6; }
+  #help { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: none;
+    background: rgba(8,12,24,0.94); border: 1px solid #22d3ee; border-radius: 10px; padding: 20px 26px;
+    font-size: 15px; line-height: 1.8; z-index: 8; }
+  #help h2 { color: #22d3ee; margin-bottom: 8px; }
+  .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    flex-direction: column; text-align: center; z-index: 10;
+    background: linear-gradient(160deg, rgba(10,8,32,0.88), rgba(60,10,60,0.82)); }
+  .screen h1 { font-size: 64px; letter-spacing: 2px; color: #ff2e88;
+    text-shadow: 0 0 24px rgba(255,46,136,0.8), 0 2px 0 #7c1038; }
+  .screen h2 { font-size: 40px; color: #ff2e88; text-shadow: 0 0 18px rgba(255,46,136,0.7); }
+  .screen .sub { font-size: 18px; color: #ffd7ef; margin: 10px 0 6px; }
+  .screen p { max-width: 560px; font-size: 16px; line-height: 1.6; color: #dfe6f2; margin: 8px 0; }
+  .screen .keys { font-size: 14px; color: #9fb4d8; }
+  .btn { pointer-events: auto; cursor: pointer; margin-top: 18px; font-size: 19px; font-weight: 700;
+    color: #fff; background: linear-gradient(180deg, #ff2e88, #c40e64); border: none; border-radius: 10px;
+    padding: 13px 34px; box-shadow: 0 4px 18px rgba(255,46,136,0.5); }
+  .btn:hover { filter: brightness(1.15); }
+  .btn.ghost { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.4); box-shadow: none; }
+  #screen-title { display: flex; }
+</style>
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+
+<div id="hud">
+  <div class="hud-box" id="hud-topleft">
+    <div class="money" id="hud-money">$150</div>
+    <div class="debt" id="hud-debt">Debt $10,000</div>
+    <div id="hud-health">♥ 100</div>
+    <div id="hud-ammo">Ammo 12 / 48</div>
+    <div id="hud-stars">☆☆☆☆☆</div>
+  </div>
+  <div class="hud-box" id="hud-topright">
+    <div id="hud-clock">08:15 · Downtown</div>
+  </div>
+  <div class="hud-box" id="hud-mission">Press M to start a mission</div>
+  <div class="hud-box" id="hud-bottomright">
+    <div id="hud-speed"></div>
+    <div id="hud-car">On foot</div>
+  </div>
+  <div class="hud-box" id="hud-bottomleft"><canvas id="minimap" width="180" height="180"></canvas></div>
+  <div id="toast"></div>
+  <div id="crosshair"></div>
+  <div id="help">
+    <h2>Palmera Bay — Controls</h2>
+    WASD move / drive &nbsp;·&nbsp; Shift sprint<br>
+    Mouse drag — look around &nbsp;·&nbsp; Click — shoot<br>
+    E — enter / exit car &nbsp;·&nbsp; R — reload &nbsp;·&nbsp; F — punch<br>
+    M — start mission &nbsp;·&nbsp; P / Esc — pause<br>
+    H — help &nbsp;·&nbsp; N — mute<br>
+    Steal cars, dodge Bay PD, run Mara's missions and pay off the $10,000 debt.
+  </div>
+</div>
+<div id="damage-flash"></div>
+
+<div class="screen" id="screen-title">
+  <h1>PALMERA BAY</h1>
+  <div class="sub">An open-world crime story in the spirit of GTA 6</div>
+  <p>You are Leo Marlin. You owe Mara Voss $10,000. Steal cars, outrun Bay PD,
+  and run six missions across a living 3D city — from the Coral Club to the docks
+  to the yacht at the marina — until the debt is paid.</p>
+  <p class="keys">WASD move/drive · mouse drag look · click shoot · E enter car · M mission · H help</p>
+  <button class="btn" id="btn-start">Start the story</button>
+  <button class="btn ghost" id="btn-continue">Continue</button>
+</div>
+
+<div class="screen" id="screen-pause">
+  <h2>Paused</h2>
+  <p>Palmera Bay waits for no one — except right now.</p>
+  <button class="btn" id="btn-resume">Resume</button>
+  <button class="btn ghost" id="btn-restart-title">Back to title</button>
+</div>
+
+<div class="screen" id="screen-busted">
+  <h2>BUSTED</h2>
+  <p>Bay PD caught you. They took $100 for the trouble and let you walk.</p>
+  <button class="btn" id="btn-retry">Back on the streets</button>
+</div>
+
+<div class="screen" id="screen-wasted">
+  <h2>WASTED</h2>
+  <p>Leo went down. The city keeps moving without you.</p>
+  <button class="btn" id="btn-retry2">Get back up</button>
+</div>
+
+<div class="screen" id="screen-win">
+  <h2>DEBT PAID</h2>
+  <p>You pulled off the Big Score, slipped away on the yacht, and paid Mara Voss
+  every last dollar. Palmera Bay is yours now, Leo.</p>
+  <button class="btn" id="btn-win-again">Play it again</button>
+</div>
+
+<script src="./vendor/three.min.js"></script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
